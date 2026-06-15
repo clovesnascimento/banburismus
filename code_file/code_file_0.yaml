@@ -1,0 +1,7 @@
+project: Banburismus Swarm
+engine: FABLE-5
+rules:
+  - ISOLATION_STRICT: Nenhum agente recebe o problema original, exceto o Agente 1.
+  - DATA_FLOW: Linear (1 -> 2 -> 3 -> 4).
+  - BLOCK_CRITERIA: Se o Agente 1 detectar Premissa [C] crítica, o fluxo é interrompido.
+  - OUTPUT: Markdown purista com metadados de rastreabilidade.

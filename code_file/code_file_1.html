@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BANBURISMUS | Reasoning Swarm v3.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&family=Inter:wght@300;400;600;700&display=swap');
+        
+        :root {
+            --bg-dark: #0a0a0c;
+            --card-bg: #111114;
+            --accent: #3b82f6;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .code-font { font-family: 'Fira Code', monospace; }
+        
+        .agent-card {
+            background: var(--card-bg);
+            border: 1px solid #27272a;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .agent-active {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+        }
+
+        .agent-blocked {
+            border-color: var(--danger);
+            background: rgba(239, 68, 68, 0.05);
+        }
+
+        .agent-completed { border-color: var(--success); }
+
+        .loading-bar {
+            height: 2px;
+            width: 0%;
+            background: var(--accent);
+            transition: width 0.5s ease;
+        }
+
+        .step-bubble {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            border: 2px solid #27272a;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .step-active { background: var(--accent); border-color: var(--accent); color: white; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight mb-1">BANBURISMUS <span class="text-blue-500 text-sm font-mono">v3.0</span></h1>
+                <p class="text-zinc-500 text-sm italic">"Calculate which paths are worth testing." — Alan Turing</p>
+            </div>
+            <div class="flex gap-2">
+                <input type="password" id="apiKey" placeholder="OpenAI API Key" class="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded text-sm focus:outline-none focus:border-blue-500">
+                <button onclick="saveKey()" class="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded text-sm transition">Salvar</button>
+            </div>
+        </header>
+
+        <!-- Input Area -->
+        <div class="agent-card rounded-xl p-6 mb-8">
+            <label class="block text-sm font-semibold text-zinc-400 mb-2 uppercase tracking-wider">Entrada do Problema (Original)</label>
+            <textarea id="problemInput" rows="4" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 text-zinc-100 focus:outline-none focus:border-blue-500 resize-none" placeholder="Descreva o problema complexo que requer raciocínio multi-agente..."></textarea>
+            <div class="mt-4 flex justify-between items-center">
+                <div class="flex items-center gap-4 text-xs text-zinc-500">
+                    <span><i class="fas fa-shield-halved mr-1"></i> Isolamento Ativado</span>
+                    <span><i class="fas fa-microchip mr-1"></i> GPT-4o / Claude-3.5</span>
+                </div>
+                <button id="startBtn" onclick="runFramework()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-8 rounded-lg transition-all transform active:scale-95 shadow-lg shadow-blue-900/20">
+                    INICIAR PROTOCOLO
+                </button>
+            </div>
+        </div>
+
+        <!-- Agent Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <!-- AGENTE 1 -->
+            <div id="agent1-card" class="agent-card rounded-xl p-5 relative overflow-hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="step-bubble" id="step1-b">1</div>
+                    <span class="text-xs font-bold text-zinc-500 uppercase">Premissas</span>
+                </div>
+                <h3 class="text-sm font-semibold mb-2">Classificação [A/B/C]</h3>
+                <div id="agent1-status" class="text-xs text-zinc-500 mb-2 italic line-clamp-2 italic text-zinc-400">Aguardando...</div>
+                <div class="h-1 bg-zinc-800 w-full rounded-full overflow-hidden">
+                    <div id="agent1-progress" class="loading-bar"></div>
+                </div>
+            </div>
+
+            <!-- AGENTE 2 -->
+            <div id="agent2-card" class="agent-card rounded-xl p-5 relative overflow-hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="step-bubble" id="step2-b">2</div>
+                    <span class="text-xs font-bold text-zinc-500 uppercase">Pre-Mortem</span>
+                </div>
+                <h3 class="text-sm font-semibold mb-2">Falhas & Mitigação</h3>
+                <div id="agent2-status" class="text-xs text-zinc-500 mb-2 italic line-clamp-2">Aguardando anterior...</div>
+                <div class="h-1 bg-zinc-800 w-full rounded-full overflow-hidden">
+                    <div id="agent2-progress" class="loading-bar"></div>
+                </div>
+            </div>
+
+            <!-- AGENTE 3 -->
+            <div id="agent3-card" class="agent-card rounded-xl p-5 relative overflow-hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="step-bubble" id="step3-b">3</div>
+                    <span class="text-xs font-bold text-zinc-500 uppercase">Solução</span>
+                </div>
+                <h3 class="text-sm font-semibold mb-2">Estruturação</h3>
+                <div id="agent3-status" class="text-xs text-zinc-500 mb-2 italic line-clamp-2">Aguardando anterior...</div>
+                <div class="h-1 bg-zinc-800 w-full rounded-full overflow-hidden">
+                    <div id="agent3-progress" class="loading-bar"></div>
+                </div>
+            </div>
+
+            <!-- AGENTE 4 -->
+            <div id="agent4-card" class="agent-card rounded-xl p-5 relative overflow-hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="step-bubble" id="step4-b">4</div>
+                    <span class="text-xs font-bold text-zinc-500 uppercase">Crítica</span>
+                </div>
+                <h3 class="text-sm font-semibold mb-2">Contrafactual</h3>
+                <div id="agent4-status" class="text-xs text-zinc-500 mb-2 italic line-clamp-2">Aguardando anterior...</div>
+                <div class="h-1 bg-zinc-800 w-full rounded-full overflow-hidden">
+                    <div id="agent4-progress" class="loading-bar"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Output Terminal -->
+        <div class="agent-card rounded-xl p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-zinc-300"><i class="fas fa-terminal mr-2 text-blue-500"></i>Relatório Consolidado</h2>
+                <button onclick="downloadOutput()" class="text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded text-zinc-300 transition">
+                    <i class="fas fa-download mr-1"></i> .MD
+                </button>
+            </div>
+            <div id="terminal" class="bg-zinc-950 border border-zinc-900 rounded-lg p-6 min-h-[400px] max-h-[600px] overflow-y-auto text-zinc-300 font-light text-sm leading-relaxed space-y-4">
+                <p class="text-zinc-600 italic">O log de execução aparecerá aqui. Cada etapa é isolada e verificada.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let fullOutput = "";
+        let agentOutputs = { 1: "", 2: "", 3: "", 4: "" };
+
+        // AGENT PROMPTS
+        const PROMPTS = {
+            agent1: (input) => `Como Agente 1 do Framework Banburismus, analise o seguinte problema: "${input}". 
+            Sua tarefa: 
+            1. Liste as premissas subjacentes.
+            2. Classifique cada uma como: [A] Verificável, [B] Assumida ou [C] Indeterminada.
+            3. Se houver alguma premissa [C] que torne a solução impossível, emita o comando "BLOQUEAR". 
+            Caso contrário, forneça apenas a lista de premissas classificadas.`,
+            
+            agent2: (input) => `Receba estas PREMISSAS classificadas: "${input}". 
+            Sua tarefa:
+            1. Com base APENAS nestas premissas, proponha uma solução lógica inicial.
+            2. Identifique 3 cenários de falha (Pre-mortem) baseados na instabilidade das premissas [B].
+            3. Forneça uma mitigação para cada falha.`,
+
+            agent3: (input) => `Receba este PRE-MORTEM e SOLUÇÃO PRELIMINAR: "${input}".
+            Sua tarefa:
+            1. Monte a Solução Estruturada Final.
+            2. Regras: Uma ideia por parágrafo, termos definidos sem ambiguidade, sem adjetivos subjetivos sem métrica.`,
+
+            agent4: (input) => `Receba esta SOLUÇÃO ESTRUTURADA: "${input}".
+            Sua tarefa:
+            1. Realize uma Auto-Crítica Hostil.
+            2. Construa um CONTRAFACTUAL: "E se a premissa principal da solução for falsa? Qual a nova arquitetura?".
+            3. Se a nova arquitetura for superior, incorpore os pontos fortes na versão final.`
+        };
+
+        async function runFramework() {
+            const key = document.getElementById('apiKey').value;
+            const problem = document.getElementById('problemInput').value;
+            if(!key || !problem) return alert("Por favor, forneça a API Key e o Problema.");
+
+            const startBtn = document.getElementById('startBtn');
+            startBtn.disabled = true;
+            startBtn.innerHTML = "PROCESSANDO...";
+            
+            try {
+                // ETAPA 1
+                updateAgentUI(1, 'active', 'Extraindo premissas...');
+                agentOutputs[1] = await callLLM(PROMPTS.agent1(problem), key);
+                if(agentOutputs[1].includes("BLOQUEAR")) {
+                    updateAgentUI(1, 'blocked', 'BLOQUEADO: Premissa C detectada.');
+                    return;
+                }
+                updateAgentUI(1, 'completed', 'Premissas mapeadas.');
+                logTerminal("ETAPA 1: PREMISSAS", agentOutputs[1]);
+
+                // ETAPA 2 (Só vê o output da 1)
+                updateAgentUI(2, 'active', 'Executando Pre-mortem...');
+                agentOutputs[2] = await callLLM(PROMPTS.agent2(agentOutputs[1]), key);
+                updateAgentUI(2, 'completed', 'Pre-mortem concluído.');
+                logTerminal("ETAPA 2: ANÁLISE DE RISCO", agentOutputs[2]);
+
+                // ETAPA 3 (Só vê o output da 2)
+                updateAgentUI(3, 'active', 'Estruturando solução...');
+                agentOutputs[3] = await callLLM(PROMPTS.agent3(agentOutputs[2]), key);
+                updateAgentUI(3, 'completed', 'Solução formatada.');
+                logTerminal("ETAPA 3: ESTRUTURAÇÃO", agentOutputs[3]);
+
+                // ETAPA 4 (Só vê o output da 3)
+                updateAgentUI(4, 'active', 'Desafiando lógica...');
+                agentOutputs[4] = await callLLM(PROMPTS.agent4(agentOutputs[3]), key);
+                updateAgentUI(4, 'completed', 'Auditoria finalizada.');
+                logTerminal("ETAPA 4: AUTO-CRÍTICA & CONTRAFACTUAL", agentOutputs[4]);
+
+                finalizeReport();
+
+            } catch (err) {
+                console.error(err);
+                alert("Erro na execução. Verifique a console.");
+            } finally {
+                startBtn.disabled = false;
+                startBtn.innerHTML = "INICIAR PROTOCOLO";
+            }
+        }
+
+        async function callLLM(prompt, key) {
+            const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${key}`
+                },
+                body: JSON.stringify({
+                    model: "gpt-4o-mini",
+                    messages: [{role: "user", content: prompt}],
+                    temperature: 0.3
+                })
+            });
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        function updateAgentUI(id, state, statusText) {
+            const card = document.getElementById(`agent${id}-card`);
+            const status = document.getElementById(`agent${id}-status`);
+            const progress = document.getElementById(`agent${id}-progress`);
+            const bubble = document.getElementById(`step${id}-b`);
+
+            card.classList.remove('agent-active', 'agent-completed', 'agent-blocked');
+            bubble.classList.remove('step-active');
+
+            if(state === 'active') {
+                card.classList.add('agent-active');
+                bubble.classList.add('step-active');
+                progress.style.width = "60%";
+            } else if(state === 'completed') {
+                card.classList.add('agent-completed');
+                progress.style.width = "100%";
+            } else if(state === 'blocked') {
+                card.classList.add('agent-blocked');
+                progress.style.width = "100%";
+                progress.classList.replace('bg-blue-500', 'bg-red-500');
+            }
+            status.innerText = statusText;
+        }
+
+        function logTerminal(title, content) {
+            const terminal = document.getElementById('terminal');
+            if(fullOutput === "") terminal.innerHTML = "";
+            
+            const div = document.createElement('div');
+            div.className = "mb-8";
+            div.innerHTML = `
+                <h4 class="text-blue-500 font-bold code-font mb-2 tracking-tighter">>>> ${title}</h4>
+                <div class="prose prose-invert max-w-none text-zinc-400 leading-relaxed whitespace-pre-wrap">${content}</div>
+            `;
+            terminal.appendChild(div);
+            terminal.scrollTop = terminal.scrollHeight;
+            
+            fullOutput += `\n\n## ${title}\n\n${content}`;
+        }
+
+        function finalizeReport() {
+            const date = new Date().toISOString();
+            const header = `# BANBURISMUS REASONING REPORT\nGenerated: ${date}\nProtocol: Multi-Agent Isolation v3.0\n---\n`;
+            fullOutput = header + fullOutput;
+        }
+
+        function downloadOutput() {
+            const blob = new Blob([fullOutput], {type: "text/markdown"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `banburismus-report-${Date.now()}.md`;
+            a.click();
+        }
+
+        function saveKey() {
+            const key = document.getElementById('apiKey').value;
+            localStorage.setItem('banburismus_key', key);
+            alert("Chave salva localmente.");
+        }
+
+        window.onload = () => {
+            const saved = localStorage.getItem('banburismus_key');
+            if(saved) document.getElementById('apiKey').value = saved;
+        };
+    </script>
+</body>
+</html>
